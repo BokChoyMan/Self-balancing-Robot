@@ -1,70 +1,113 @@
-// Define stepper motor connections and steps per revolution:
 #include <Wire.h>
-#define rDir 3
-#define rStep 2
-#define lDir 6
-#define lStep 5
-int16_t Acc_rawX, Acc_rawY, Acc_rawZ;
-float roll = 0;
-float rad_to_deg = 180/3.141592654;
-#define stepsPerRevolution 1675 //1.8 degrees per step, 200 steps 1 revolution
+#include "mcu6050.h"
 
-long nextStep_us;
+//===============INSTANCE_VARIABLES==============//
+
+//Motor pin declarations//
+int rDir = 3;    //Right direction.
+int lDir = 6;    //Left direction.
+
+int rStep = 2;   //Right step.
+int lStep = 5;   //Left step.
+
+//Data collection variables//
+int16_t Acc_rawX, Acc_rawY, Acc_rawZ;
+float rad_to_deg = 180/3.141592654;
+
+//1.8 degrees per step, 200 steps 1 revolution//
+int stepsPerRevolution = 1675; 
+
+//Next step of motor in microseconds//
+long nextStep_us; 
+
+//PID variables//
+float pid_p=0;
+float pid_i=0;
+float pid_d=0;
+
+//PID Constants//
+float kp=0;   //proportion
+float ki=0;   //integral
+float kd=0;   //derivative
+
+//Target Roll Angle//
+float desired_angle = 0;
+
+//=====================SETUP=====================//
 
 void setup() {
-  // Declare pins as output:
+  //Declare pins as output//
   Serial.begin(115200);
   pinMode(rStep, OUTPUT);
   pinMode(rDir, OUTPUT);
   pinMode(lStep, OUTPUT);
   pinMode(lDir, OUTPUT);
-  Wire.begin(); /////////////TO BEGIN I2C COMMUNICATIONS///////////////
+  
+  //Begin I2C Communications//
+  Wire.begin(); 
+  
+  //maximum frequency for arduino is 400k Hz, fastest processing clock.
   Wire.setClock(400000);
   Wire.beginTransmission(0x68);
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
-  
 
+  //Begin timer for motor//
   nextStep_us=micros();  
 }
 
-long t=0;
-long n=0;
+//=================TIMER_VARIABLES==================//
 
-long period_us=1675*2;
-boolean state=LOW;
+//Declare timer variables for runtime from t0 => t1//
+long t=0;       //The change in time within the loop.
+long n=0;       //Sample size.
 
+//Period microstepping of the motor//
+boolean state = LOW;     //manipulates the HIGH and LOW pulse of PWM signal.
+long steps = 1675;       //Steps in each period.
+long delay_us =  2000;   //delay cannot be less than 900 us because of overlap.
+
+long period_us = delay_us*2;   /* 
+                                  2 time periods for HIGH/LOW pulse,
+                                  LOWER Period the faster, HIGHER Period the slower
+                               */ 
+//=======================LOOP=======================//
+                                                     
 void loop() {
-  long t0=micros();
   
-  Wire.beginTransmission(0x68);
-  
-  Wire.write(0x3B); 
-  Wire.endTransmission(false);
-  
-  Wire.requestFrom(0x68,6,true);
-  
-////////////////////PULLING RAW ACCELEROMETER DATA FROM IMU///////////////// 
-  Acc_rawX=Wire.read()<<8|Wire.read(); 
-  Acc_rawY=Wire.read()<<8|Wire.read();
-  Acc_rawZ=Wire.read()<<8|Wire.read(); 
+  long t0=micros();  //begin timer.
 
-  /////////////////////CONVERTING RAW DATA TO ANGLES/////////////////////
-  roll = atan((Acc_rawX/16384.0)/(Acc_rawZ/16384.0))*rad_to_deg;
+  //Reads ACC and GYRO values from MPU6050//
+  readMCU6050data(); 
 
-  long t1=micros();
-
-  t += (t1-t0);
+  //Calculates angles used for roll//
+  float angle_rad = getMCU6050_fused_angleY();       //roll angle.
+  float dot_angle_rad = getMCU6050_gyro_rateY();     //the derivative of roll angle.
+  
+  long t1=micros();  //end timer.
+  
+  //Sending PWM signal to motors//
+  clockw();
+  
+ //_Run-timer_//
+  t+=(t1-t0); 
   n ++;
-  if (n==1000) {
-    Serial.println(t/n);
-    n=0;
-    t=0;
+  if (n==1000)
+  {
+    Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
+    n=0;   //reset n;
+    t=0;   //reset timer;
   }
+}
 
+//=====================METHODS======================//
 
-  if (micros()>=nextStep_us) {
+//Clockwise movement//
+void clockw()
+{
+  if (micros()>=nextStep_us) 
+  {
     // Set the spinning direction clockwise:
     digitalWrite(rDir, HIGH);
     digitalWrite(lDir, HIGH);
@@ -75,79 +118,32 @@ void loop() {
     nextStep_us += period_us;
       
   }
-  /*
-  // Set the spinning direction clockwise:
-  digitalWrite(rDir, HIGH);
-  digitalWrite(lDir, HIGH);
+}
 
-  // These four lines result in 1 step:
-  digitalWrite(rStep, HIGH);
-  digitalWrite(lStep, HIGH);
-  delayMicroseconds(600);
-  digitalWrite(rStep, LOW);
-  digitalWrite(lStep, LOW);
-  delayMicroseconds(600);
-*/
+//Counter-clockwise movement//
+void counter()
+{
+  if (micros()>=nextStep_us) 
+  {
+    // Set the spinning direction counterwise:
+    digitalWrite(rDir, LOW);
+    digitalWrite(lDir, LOW);
 
- /*    Serial.print("roll(Y): ");
-    Serial.print(Acceleration_angle[0]);
-    Serial.print("    ");
-    Serial.print("AccelX: ");
-    Serial.print(Acc_rawX/16384.0);
-    Serial.print("    ");
-    Serial.print("AccelY: ");
-    Serial.print(Acc_rawY/16384.0);
-    Serial.print("    ");
-    Serial.print("AccelZ: ");
-    Serial.print(Acc_rawZ/16384.0);
-    Serial.println("");*/
+    digitalWrite(rStep, state);
+    digitalWrite(lStep, state);
+    state = ! state;
+    nextStep_us += period_us;
+      
+  }
+}
 
-    
-   /*// Set the spinning direction counterclockwise:
-  digitalWrite(rDir, LOW);
-  digitalWrite(lDir, LOW);
-  // Spin the stepper motor 1 revolution quickly:
-  for (int i = 0; i < stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-    digitalWrite(rStep, HIGH);
-    digitalWrite(lStep, HIGH);
-    delayMicroseconds(150);
+//Halt movement//
+void halt()
+{
+  if (micros()>=nextStep_us) 
+  {
     digitalWrite(rStep, LOW);
     digitalWrite(lStep, LOW);
-    delayMicroseconds(150);
-    
+    nextStep_us += period_us;
   }
-  */
-
-  
-  /*
-  // Set the spinning direction clockwise:
-  digitalWrite(rDir, HIGH);
-  digitalWrite(lDir, HIGH);
-  // Spin the stepper motor 5 revolutions fast:
-  for (int i = 0; i < 5 * stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-    digitalWrite(rStep, HIGH);
-    digitalWrite(lStep, HIGH);
-    delayMicroseconds(500);
-    digitalWrite(rStep, LOW);
-    digitalWrite(lStep, LOW);
-    delayMicroseconds(500);
-  }
-  delay(1000);
-  // Set the spinning direction counterclockwise:
-  digitalWrite(rDir, LOW);
-  digitalWrite(lDir, LOW);
-  //Spin the stepper motor 5 revolutions fast:
-  for (int i = 0; i < 5 * stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-    digitalWrite(rStep, HIGH);
-    digitalWrite(lStep, HIGH);
-    delayMicroseconds(500);
-    digitalWrite(rStep, LOW);
-    digitalWrite(lStep, LOW);
-    delayMicroseconds(500);
-  }
-  delay(1000);
-  */
 }
