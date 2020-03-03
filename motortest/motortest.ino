@@ -12,7 +12,8 @@ int lStep = 5;   //Left step.
 
 //Data collection variables//
 int16_t Acc_rawX, Acc_rawY, Acc_rawZ;
-float rad_to_deg = 180/3.141592654;
+float rad_to_deg = 180/M_PI;
+float error;
 
 //1.8 degrees per step, 200 steps 1 revolution//
 int stepsPerRevolution = 1675; 
@@ -21,9 +22,7 @@ int stepsPerRevolution = 1675;
 long nextStep_us; 
 
 //PID variables//
-float pid_p=0;
-float pid_i=0;
-float pid_d=0;
+float pid_p, pid_i, pid_d, PID;
 
 //PID Constants//
 float kp=0;   //proportion
@@ -42,16 +41,9 @@ void setup() {
   pinMode(rDir, OUTPUT);
   pinMode(lStep, OUTPUT);
   pinMode(lDir, OUTPUT);
-  
-  //Begin I2C Communications//
-  Wire.begin(); 
-  
-  //maximum frequency for arduino is 400k Hz, fastest processing clock.
-  Wire.setClock(400000);
-  Wire.beginTransmission(0x68);
-  Wire.write(0x6B);
-  Wire.write(0);
-  Wire.endTransmission(true);
+
+  //Initialize MPU6050//
+  startMCU6050();
 
   //Begin timer for motor//
   nextStep_us=micros();  
@@ -66,12 +58,13 @@ long n=0;       //Sample size.
 //Period microstepping of the motor//
 boolean state = LOW;     //manipulates the HIGH and LOW pulse of PWM signal.
 long steps = 1675;       //Steps in each period.
-long delay_us =  2000;   //delay cannot be less than 900 us because of overlap.
+long delay_t =  2000;   //delay cannot be less than 900 us because of overlap.
 
-long period_us = delay_us*2;   /* 
+long period_us = delay_t*2;   /* 
                                   2 time periods for HIGH/LOW pulse,
                                   LOWER Period the faster, HIGHER Period the slower
                                */ 
+int j=0;
 //=======================LOOP=======================//
                                                      
 void loop() {
@@ -82,20 +75,52 @@ void loop() {
   readMCU6050data(); 
 
   //Calculates angles used for roll//
-  float angle_rad = getMCU6050_fused_angleY();       //roll angle.
-  float dot_angle_rad = getMCU6050_gyro_rateY();     //the derivative of roll angle.
+  float angle_deg = getMCU6050_fused_angleY()*rad_to_deg;       //roll angle.
+  float dot_angle_deg = getMCU6050_gyro_rateY()*rad_to_deg;     //the derivative of roll angle.
+  
+  //Difference from desired angle
+  error = desired_angle - angle_deg;
+
+  //Proportion, Integral, Derivative Control loop//
+  pid_p = kp*error;
+  pid_i += ki*error;
+  pid_d = kd*dot_angle_deg;
+  PID = pid_p + pid_i + pid_d;
+
+  Serial.print("p: ");
+  Serial.println(pid_p);
+  Serial.print("d: ");
+  Serial.println(pid_d);
+  Serial.print("PID: ");
+  Serial.println(PID);
+  Serial.print("Angle: ");
+  Serial.println(angle_deg);
+  Serial.print("Error: ");
+  Serial.println(error);
+  delay(500);
+  //Sending PWM signal to motors//
+  if(angle_deg < 0)
+  {
+    clockw(5000/abs(PID));   
+  }
+  
+  if(angle_deg > 0)
+  {
+    counter(5000/abs(PID));
+  }
+  
+  if(angle_deg > 45 || angle_deg < -45)
+  {
+    halt();
+  }
   
   long t1=micros();  //end timer.
-  
-  //Sending PWM signal to motors//
-  clockw();
-  
- //_Run-timer_//
+ //==Run-timer==//
   t+=(t1-t0); 
   n ++;
   if (n==1000)
   {
-    Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
+    //Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
     n=0;   //reset n;
     t=0;   //reset timer;
   }
@@ -104,7 +129,7 @@ void loop() {
 //=====================METHODS======================//
 
 //Clockwise movement//
-void clockw()
+void clockw(long delay_us)
 {
   if (micros()>=nextStep_us) 
   {
@@ -115,13 +140,13 @@ void clockw()
     digitalWrite(rStep, state);
     digitalWrite(lStep, state);
     state = ! state;
-    nextStep_us += period_us;
-      
+    nextStep_us += delay_us;
+
   }
 }
 
 //Counter-clockwise movement//
-void counter()
+void counter(long delay_us)
 {
   if (micros()>=nextStep_us) 
   {
@@ -132,7 +157,7 @@ void counter()
     digitalWrite(rStep, state);
     digitalWrite(lStep, state);
     state = ! state;
-    nextStep_us += period_us;
+    nextStep_us += delay_us;
       
   }
 }
@@ -140,10 +165,7 @@ void counter()
 //Halt movement//
 void halt()
 {
-  if (micros()>=nextStep_us) 
-  {
-    digitalWrite(rStep, LOW);
-    digitalWrite(lStep, LOW);
-    nextStep_us += period_us;
-  }
+  digitalWrite(rStep, LOW);
+  digitalWrite(lStep, LOW);
+
 }
