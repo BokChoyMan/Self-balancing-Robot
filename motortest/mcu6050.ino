@@ -94,7 +94,6 @@ void startMCU6050()
   data.acc_angleY_bias=0;
   data.gyroY_bias=0;
 
-  detachInterrupt(digitalPinToInterrupt(DATAREADY_INT_PIN));
   int N=1000/SAMPLING_TIME;  // 1 sec of measurements
   for (int i=0;i<N;i++) {
     readMCU6050data();
@@ -113,7 +112,7 @@ void startMCU6050()
 
   // attach interrupt for data ready
   //pinMode(13,INPUT); // just to see interrupt if device connect to pin 13
-  pinMode(DATAREADY_INT_PIN, INPUT);
+
   Serial.println("Computed bias");
   //attachInterrupt(digitalPinToInterrupt(DATAREADY_INT_PIN), readMCU6050data, RISING);
   //attachInterrupt(digitalPinToInterrupt(DATAREADY_INT_PIN), readMCU6050data, HIGH);
@@ -255,7 +254,3 @@ void printMCU6050data(struct MCU6050data_S *data)
   Serial.print(readRegister(MCU6050_ADDR,MCU6050_REG_INT_STATUS),BIN);
   Serial.println("");
 }
-
-
-
-

@@ -13,24 +13,27 @@ int lStep = 5;   //Left step.
 //Data collection variables//
 int16_t Acc_rawX, Acc_rawY, Acc_rawZ;
 float rad_to_deg = 180/M_PI;
-float error;
 
-//1.8 degrees per step, 200 steps 1 revolution//
-int stepsPerRevolution = 1675; 
+//=================PID_VARIABLES==================//
 
-//Next step of motor in microseconds//
-long nextStep_us; 
+float pid_p, pid_i, pid_d, PID, error;
 
-//PID variables//
-float pid_p, pid_i, pid_d, PID;
+float kp=25;   //proportion
+float ki=0;    //integral
+float kd=2;    //derivative
 
-//PID Constants//
-float kp=0;   //proportion
-float ki=0;   //integral
-float kd=0;   //derivative
+float desired_angle = 0; //Ideal/Target Angle
 
-//Target Roll Angle//
-float desired_angle = 0;
+//=============TIME-BASED_VARIABLES==============//
+
+//Timer variables for runtime from t0 => t1//
+long t=0;       //The change in time within the loop.
+long n=0;       //Sample size.
+long j=0;       //some time variable.
+
+//Period microstepping of the motor//
+boolean state = LOW;   //manipulates the HIGH and LOW pulse of PWM signal.
+long nextStep_us;      //Next step of motor in microseconds
 
 //=====================SETUP=====================//
 
@@ -43,33 +46,16 @@ void setup() {
   pinMode(lDir, OUTPUT);
 
   //Initialize MPU6050//
-  startMCU6050();
+  startMCU6050;
 
   //Begin timer for motor//
   nextStep_us=micros();  
 }
 
-//=================TIMER_VARIABLES==================//
-
-//Declare timer variables for runtime from t0 => t1//
-long t=0;       //The change in time within the loop.
-long n=0;       //Sample size.
-
-//Period microstepping of the motor//
-boolean state = LOW;     //manipulates the HIGH and LOW pulse of PWM signal.
-long steps = 1675;       //Steps in each period.
-long delay_t =  2000;   //delay cannot be less than 900 us because of overlap.
-
-long period_us = delay_t*2;   /* 
-                                  2 time periods for HIGH/LOW pulse,
-                                  LOWER Period the faster, HIGHER Period the slower
-                               */ 
-int j=0;
-//=======================LOOP=======================//
+//======================LOOP======================//
                                                      
 void loop() {
-  
-  long t0=micros();  //begin timer.
+  //long t0=micros();  //begin timer.
 
   //Reads ACC and GYRO values from MPU6050//
   readMCU6050data(); 
@@ -77,53 +63,37 @@ void loop() {
   //Calculates angles used for roll//
   float angle_deg = getMCU6050_fused_angleY()*rad_to_deg;       //roll angle.
   float dot_angle_deg = getMCU6050_gyro_rateY()*rad_to_deg;     //the derivative of roll angle.
-  
-  //Difference from desired angle
-  error = desired_angle - angle_deg;
+
+  //Difference from desired angle//
+  error = angle_deg - desired_angle;
 
   //Proportion, Integral, Derivative Control loop//
   pid_p = kp*error;
   pid_i += ki*error;
   pid_d = kd*dot_angle_deg;
   PID = pid_p + pid_i + pid_d;
-
-  Serial.print("p: ");
-  Serial.println(pid_p);
-  Serial.print("d: ");
-  Serial.println(pid_d);
-  Serial.print("PID: ");
-  Serial.println(PID);
-  Serial.print("Angle: ");
-  Serial.println(angle_deg);
-  Serial.print("Error: ");
-  Serial.println(error);
-  delay(500);
+  
+  float set_delay_us = 3200/abs(PID);
+  
   //Sending PWM signal to motors//
-  if(angle_deg < 0)
-  {
-    clockw(5000/abs(PID));   
-  }
-  
-  if(angle_deg > 0)
-  {
-    counter(5000/abs(PID));
-  }
-  
-  if(angle_deg > 45 || angle_deg < -45)
+   if(angle_deg > 45 || angle_deg < -45)
   {
     halt();
   }
   
-  long t1=micros();  //end timer.
- //==Run-timer==//
-  t+=(t1-t0); 
-  n ++;
-  if (n==1000)
+  else if(angle_deg < 0)
   {
-    //Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
-    n=0;   //reset n;
-    t=0;   //reset timer;
+    clockw(set_delay_us);   
   }
+  
+  else
+  {
+    counter(set_delay_us);
+  }
+  /*
+  long t1=micros();  //end timer.
+  runtime(t0,t1);
+  */
 }
 
 //=====================METHODS======================//
@@ -167,5 +137,17 @@ void halt()
 {
   digitalWrite(rStep, LOW);
   digitalWrite(lStep, LOW);
+}
 
+//Run-time Timer//
+void runtime(long t0, long t1)
+{
+  t+=(t1-t0); 
+  n ++;
+  if (n==1000)
+  {
+    Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
+    n=0;   //reset n;
+    t=0;   //reset timer;
+  }
 }
