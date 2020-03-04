@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include<MPU6050.h>
 MPU6050 mpu;
-
+//owo uwu
 ////////////////VARIABLE DEFINATION///////////////
 int rDir = 3;
 int rStep = 2;
