@@ -74,7 +74,8 @@ void loop() {
   PID = pid_p + pid_i + pid_d;
   
   float set_delay_us = 3200/abs(PID);
-  
+
+  Serial.println(angle_deg);
   //Sending PWM signal to motors//
    if(angle_deg > 45 || angle_deg < -45)
   {
