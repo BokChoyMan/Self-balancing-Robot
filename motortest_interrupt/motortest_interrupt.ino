@@ -38,23 +38,12 @@ long j=0;       //some time variable.
 boolean state = LOW;   //manipulates the HIGH and LOW pulse of PWM signal.
 long nextStep_us;      //Next step of motor in microseconds
 
+//variables for interrupt
+const uint16_t t1_load = 0;
+const uint16_t t1_comp = 9999;
+
 //=====================SETUP=====================//
 
-/*void init_PID() {  
-  // initialize Timer1
-  cli();          // disable global interrupts
-  TCCR1A = 0;     // set entire TCCR1A register to 0
-  TCCR1B = 0;     // same for TCCR1B    
-  // set compare match register to set sample time 5ms
-  OCR1A = 9999;    
-  // turn on CTC mode
-  TCCR1B |= (1 << WGM12);
-  // Set CS11 bit for prescaling by 8
-  TCCR1B |= (1 << CS11);
-  // enable timer compare interrupt
-  TIMSK1 |= (1 << OCIE1A);
-  sei();          // enable global interrupts
-}*/
 
 void setup() {
   //Declare pins as output//
@@ -70,7 +59,25 @@ void setup() {
   //Begin timer for motor//
   nextStep_us=micros();  
 
-  //init_PID();
+  //interruption set up 
+  
+  cli();          // disable global interrupts
+  TCCR1A = 0;     // reset timer1 control reg A
+
+  //set prescaling value to 8
+  TCCR1B |= (1 << CS12);
+  TCCR1B &= ~(1 << CS11);
+  TCCR1B &= ~(1 << CS10);
+
+  //reset timer and set compare value
+  TCNT1 = t1_load;
+  OCR1A = t1_comp;
+
+  //Enable Timer1 compare interrupt
+  TIMSK1 = (1 << OCIE1A);
+
+  //enable global interrupts
+  sei();
 }
 
 //======================LOOP======================//
@@ -78,25 +85,10 @@ void setup() {
 void loop() {
   //long t0=micros();  //begin timer.
 
-  //Reads ACC and GYRO values from MPU6050//
+  ///Reads ACC and GYRO values from MPU6050//
   readMCU6050data(); 
-
-  //Calculates angles used for roll//
-  angle_deg = getMCU6050_fused_angleY()*rad_to_deg;       //roll angle.
-  float dot_angle_deg = getMCU6050_gyro_rateY()*rad_to_deg;     //the derivative of roll angle.
-
-  //Difference from desired angle//
-  error = angle_deg - desired_angle;
-
-  //Proportion, Integral, Derivative Control loop//
-  pid_p = kp*error;
-  pid_i += ki*error;
-  pid_d = kd*dot_angle_deg;
-  PID = pid_p + pid_i + pid_d;
   
-  set_delay_us = 3200/abs(PID);
-  
-  //Sending PWM signal to motors//
+  //Sending PWM signal to motors
    if(angle_deg > 45 || angle_deg < -45)
   {
     halt();
@@ -111,6 +103,7 @@ void loop() {
   {
     counter(set_delay_us);
   }
+  
   /*
   long t1=micros();  //end timer.
   runtime(t0,t1);
@@ -173,10 +166,11 @@ void runtime(long t0, long t1)
   }
 }
 
-/*ISR(TIMER1_COMPA_vect)
+ISR(TIMER1_COMPA_vect)
 {
-   //Reads ACC and GYRO values from MPU6050//
-  readMCU6050data(); 
+  TCNT1 = t1_load;
+  
+  Serial.println("kelly is the coolest person in the world");
 
   //Calculates angles used for roll//
   angle_deg = getMCU6050_fused_angleY()*rad_to_deg;       //roll angle.
@@ -184,7 +178,8 @@ void runtime(long t0, long t1)
 
   //Difference from desired angle//
   error = angle_deg - desired_angle;
-
+  Serial.println(angle_deg);
+  
   //Proportion, Integral, Derivative Control loop//
   pid_p = kp*error;
   pid_i += ki*error;
@@ -193,4 +188,4 @@ void runtime(long t0, long t1)
   
   set_delay_us = 3200/abs(PID);
 
-}*/
+}
