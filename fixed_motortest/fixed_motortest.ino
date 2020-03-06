@@ -19,7 +19,7 @@ float dot_angle_deg;
 
 float pid_p, pid_i, pid_d, PID, error;
 
-float kp=25;   //proportion**
+float kp=45;   //proportion**
 float ki=0;    //integral
 float kd=2;    //derivative**
 
@@ -41,7 +41,7 @@ const int max_16bit = 65535;        //Max integer 16bit can store.
 const int f_clock = 16*10^6;        //Arduino UNO clock speed is 16 MHz.
 
 int t_period_s = 600*10^(-6);       //target period to interrupt**.
-int prescale = 8;                   //prescale factor to scale number of interrupts stored**. 
+int prescale = 256;                   //prescale factor to scale number of interrupts stored**. 
 
 const uint16_t t1_load = 0;         //resets timer back to 0.
 uint16_t t1_comp = max_16bit - f_clock*t_period_s/prescale; 
@@ -72,8 +72,8 @@ void setup() {
   TCCR1A = 0;     //reset timer1 control reg A
 
   //set prescaling value to 8
-  TCCR1B &= ~(1 << CS12);
-  TCCR1B |= (1 << CS11);
+  TCCR1B |= (1 << CS12);
+  TCCR1B &= ~(1 << CS11);
   TCCR1B &= ~(1 << CS10);
 
   //reset timer and set compare value
