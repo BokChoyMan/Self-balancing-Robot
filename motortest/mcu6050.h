@@ -4,6 +4,9 @@
 // Arduino does not seem to handle past 800KHz.
 #define TWI_FREQ_MCU6050 400000L 
 
+// not really using interrupt since I2C cannot be called from inside interrupt handler
+#define DATAREADY_INT_PIN 4
+
 #define SAMPLING_TIME 3
 
 // time constant of the complementary filter [sec]

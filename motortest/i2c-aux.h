@@ -13,5 +13,3 @@ extern void readNregisters(int device,int reg,int n,byte *buffer);
 extern void read2Nregisters(int device,int reg,int n,int *buffer);
 
 extern void writeRegister(int device,int reg,int value);
-
-
