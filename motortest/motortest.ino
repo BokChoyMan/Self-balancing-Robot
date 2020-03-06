@@ -94,7 +94,7 @@ void loop() {
 
   ///Reads ACC and GYRO values from MPU6050//
   readMCU6050data(); 
-  
+ 
   //Sending PWM signal to motors
    if(angle_deg > 45 || angle_deg < -45)
   {
@@ -122,8 +122,8 @@ void loop() {
 //Clockwise movement//
 void clockw(long delay_us)
 {
-  if (micros()>=nextStep_us) 
-  {
+  while (micros()<nextStep_us) {}
+   
     // Set the spinning direction clockwise:
     digitalWrite(rDir, HIGH);
     digitalWrite(lDir, HIGH);
@@ -132,15 +132,13 @@ void clockw(long delay_us)
     digitalWrite(lStep, state);
     state = ! state;
     nextStep_us += delay_us;
-
-  }
 }
 
 //Counter-clockwise movement//
 void counter(long delay_us)
 {
-  if (micros()>=nextStep_us) 
-  {
+  while (micros()<nextStep_us) {} 
+  
     // Set the spinning direction counterwise:
     digitalWrite(rDir, LOW);
     digitalWrite(lDir, LOW);
@@ -150,7 +148,6 @@ void counter(long delay_us)
     state = ! state;
     nextStep_us += delay_us;
       
-  }
 }
 
 //Halt movement//

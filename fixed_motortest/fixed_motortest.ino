@@ -11,38 +11,45 @@ int rStep = 2;   //Right step.
 int lStep = 5;   //Left step.
 
 //Data collection variables//
-int16_t Acc_rawX, Acc_rawY, Acc_rawZ;
 float rad_to_deg = 180/M_PI;
+float angle_deg;
+float dot_angle_deg;
 
 //=================PID_VARIABLES==================//
 
 float pid_p, pid_i, pid_d, PID, error;
 
-float kp=25;   //proportion
+float kp=25;   //proportion**
 float ki=0;    //integral
-float kd=2;    //derivative
+float kd=2;    //derivative**
 
 float desired_angle = 0; //Ideal/Target Angle
-
-float angle_deg;
-float dot_angle_deg;
-float set_delay_us;
 
 //=============TIME-BASED_VARIABLES==============//
 
 //Timer variables for runtime from t0 => t1//
 long t=0;       //The change in time within the loop.
 long n=0;       //Sample size.
-long j=0;       //some time variable.
 
 //Period microstepping of the motor//
 boolean state = LOW;   //manipulates the HIGH and LOW pulse of PWM signal.
-long nextStep_us;      //Next step of motor in microseconds
+long nextStep_us;      //Next step of motor in microseconds.
+float set_delay_us;    
 
-//variables for interrupt
-const uint16_t t1_load = 0;
-const uint16_t t1_comp = 9999;
+//variables for interrupt//
+const int max_16bit = 65535;        //Max integer 16bit can store.
+const int f_clock = 16*10^6;        //Arduino UNO clock speed is 16 MHz.
 
+int t_period_s = 600*10^(-6);       //target period to interrupt**.
+int prescale = 8;                   //prescale factor to scale number of interrupts stored**. 
+
+const uint16_t t1_load = 0;         //resets timer back to 0.
+uint16_t t1_comp = max_16bit - f_clock*t_period_s/prescale; 
+         /* 
+          Sets the compare interupt time.
+          t1_comp = 16bits - target_period(s)*16Mhz/prescale-factor.  
+         */
+                                                  
 //=====================SETUP=====================//
 
 
@@ -55,19 +62,18 @@ void setup() {
   pinMode(lDir, OUTPUT);
 
   //Initialize MPU6050//
-  startMCU6050;
+  startMCU6050();
 
   //Begin timer for motor//
   nextStep_us=micros();  
 
-  //interruption set up 
-  
-  cli();          // disable global interrupts
-  TCCR1A = 0;     // reset timer1 control reg A
+  //interruption set up//
+  cli();          //disable global interrupts
+  TCCR1A = 0;     //reset timer1 control reg A
 
   //set prescaling value to 8
-  TCCR1B |= (1 << CS12);
-  TCCR1B &= ~(1 << CS11);
+  TCCR1B &= ~(1 << CS12);
+  TCCR1B |= (1 << CS11);
   TCCR1B &= ~(1 << CS10);
 
   //reset timer and set compare value
@@ -161,7 +167,7 @@ void runtime(long t0, long t1)
   n ++;
   if (n==1000)
   {
-    //Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
+    Serial.println(t/n); //prints the run time average from (t1 => t0) every n loops.
     n=0;   //reset n;
     t=0;   //reset timer;
   }
@@ -170,8 +176,6 @@ void runtime(long t0, long t1)
 ISR(TIMER1_COMPA_vect)
 {
   TCNT1 = t1_load;
- 
-  Serial.println("kelly is the coolest person in the world");
 
   //Calculates angles used for roll//
   angle_deg = getMCU6050_fused_angleY()*rad_to_deg;       //roll angle.
@@ -188,5 +192,4 @@ ISR(TIMER1_COMPA_vect)
   PID = pid_p + pid_i + pid_d;
   
   set_delay_us = 3200/abs(PID);
-
 }

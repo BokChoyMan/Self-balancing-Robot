@@ -4,6 +4,8 @@
 #define dirPinLeft 6
 #define stepPinLeft 5
 #define stepsPerRevolution 1675
+int i = 255; // -255 to 255
+
 void setup() {
   // Declare pins as output:
   pinMode(stepPinRight, OUTPUT);
@@ -12,36 +14,15 @@ void setup() {
   pinMode(dirPinLeft, OUTPUT);
 }
 void loop() {
-  // Set the spinning direction clockwise:
-  digitalWrite(dirPinRight, HIGH);
-  digitalWrite(dirPinLeft, HIGH);
-  // Spin the stepper motor 1 revolution slowly:
-  for (int i = 0; i < stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-    digitalWrite(stepPinRight, HIGH);
-    digitalWrite(stepPinLeft, HIGH);
-    delayMicroseconds(500);
-    digitalWrite(stepPinRight, LOW);
-    digitalWrite(stepPinLeft, LOW);
-    delayMicroseconds(500);
-   
-  }
+  
+  digitalWrite(dirPinRight,HIGH);
+  digitalWrite(dirPinLeft,HIGH);
 
-  // Set the spinning direction counterclockwise:
-  digitalWrite(dirPinRight, LOW);
-  digitalWrite(dirPinLeft, LOW);
-  // Spin the stepper motor 1 revolution quickly:
-  for (int i = 0; i < stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-    digitalWrite(stepPinRight, HIGH);
-    digitalWrite(stepPinLeft, HIGH);
-    delayMicroseconds(500);
-    digitalWrite(stepPinRight, LOW);
-    digitalWrite(stepPinLeft, LOW);
-    delayMicroseconds(500);
-  }
   
+  analogWrite(stepPinRight, i);
+  analogWrite(stepPinLeft, i);
   
+ 
   /*
   // Set the spinning direction clockwise:
   digitalWrite(dirPinRight, HIGH);
