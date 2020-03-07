@@ -53,4 +53,3 @@ void writeRegister(int device,int reg,int value)
   Wire.write(value); 
   Wire.endTransmission(); 
 }
-

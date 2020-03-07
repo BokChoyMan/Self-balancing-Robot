@@ -19,7 +19,7 @@ float dot_angle_deg;
 
 float pid_p, pid_i, pid_d, PID, error;
 
-float kp=25;   //proportion**
+float kp=45;   //proportion**
 float ki=0;    //integral
 float kd=2;    //derivative**
 
@@ -40,8 +40,8 @@ float set_delay_us;
 const int max_16bit = 65536;        //Max integer 16bit can store.
 const int f_clock = 16*10^6;        //Arduino UNO clock speed is 16 MHz.
 
-int t_period_s = 800*10^(-6);       //target period to interrupt**.
-int prescale = 8;                   //prescale factor to scale number of interrupts stored**. 
+int t_period_s = 600*10^(-6);       //target period to interrupt**.
+int prescale = 256;                   //prescale factor to scale number of interrupts stored**. 
 
 const uint16_t t1_load = 0;         //resets timer back to 0.
 uint16_t t1_comp = max_16bit - f_clock*t_period_s/prescale; 
@@ -62,7 +62,7 @@ void setup() {
   pinMode(lDir, OUTPUT);
 
   //Initialize MPU6050//
-  startMCU6050;
+  startMCU6050();
 
   //Begin timer for motor//
   nextStep_us=micros();  
@@ -71,9 +71,9 @@ void setup() {
   cli();          //disable global interrupts
   TCCR1A = 0;     //reset timer1 control reg A
 
-  //set prescaling value to 8
-  TCCR1B &= ~(1 << CS12);
-  TCCR1B |= (1 << CS11);
+  //set prescaling value to 256
+  TCCR1B |= (1 << CS12);
+  TCCR1B &= ~(1 << CS11);
   TCCR1B &= ~(1 << CS10);
 
   //reset timer and set compare value
@@ -94,7 +94,7 @@ void loop() {
 
   ///Reads ACC and GYRO values from MPU6050//
   readMCU6050data(); 
- 
+  
   //Sending PWM signal to motors
    if(angle_deg > 45 || angle_deg < -45)
   {
@@ -122,8 +122,8 @@ void loop() {
 //Clockwise movement//
 void clockw(long delay_us)
 {
-  while (micros()<nextStep_us) {}
-   
+  if (micros()>=nextStep_us) 
+  {
     // Set the spinning direction clockwise:
     digitalWrite(rDir, HIGH);
     digitalWrite(lDir, HIGH);
@@ -132,13 +132,15 @@ void clockw(long delay_us)
     digitalWrite(lStep, state);
     state = ! state;
     nextStep_us += delay_us;
+
+  }
 }
 
 //Counter-clockwise movement//
 void counter(long delay_us)
 {
-  while (micros()<nextStep_us) {} 
-  
+  if (micros()>=nextStep_us) 
+  {
     // Set the spinning direction counterwise:
     digitalWrite(rDir, LOW);
     digitalWrite(lDir, LOW);
@@ -148,6 +150,7 @@ void counter(long delay_us)
     state = ! state;
     nextStep_us += delay_us;
       
+  }
 }
 
 //Halt movement//
@@ -180,7 +183,6 @@ ISR(TIMER1_COMPA_vect)
 
   //Difference from desired angle//
   error = angle_deg - desired_angle;
-  Serial.println(angle_deg);
   
   //Proportion, Integral, Derivative Control loop//
   pid_p = kp*error;
